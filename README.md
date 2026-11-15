@@ -6,7 +6,7 @@ To osobna implementacja Androida, a nie kompilacja desktopowego Qt ani oficjalny
 
 ## Instalacja i użycie
 
-1. Pobierz [FedoraMW-0.2.1-debug.apk z Releases](https://github.com/Novicek000/FedoraMW/releases/download/v0.2.1/FedoraMW-0.2.1-debug.apk) i zainstaluj na telefonie z Androidem 8 lub nowszym. To APK testowe, podpisane kluczem debug.
+1. Pobierz [FedoraMW-0.2.2-debug.apk z Releases](https://github.com/Novicek000/FedoraMW/releases/download/v0.2.2/FedoraMW-0.2.2-debug.apk) i zainstaluj na telefonie z Androidem 8 lub nowszym. To APK testowe, podpisane kluczem debug.
 2. Wybierz edycję z pogrupowanej listy (Oficjalne edycje, Atomic Desktops, Spins, Labs), a następnie wydanie z osobnego pola. Układ, nazwy i kolejność edycji odpowiadają metadanym oryginalnego Fedora Media Writer. Ten uproszczony wybór używa obrazów x86_64 dla komputerów Intel / AMD, niezależnie od procesora telefonu.
 3. Podłącz pendrive przez USB-C lub adapter OTG. Dotknij jego nazwy i zaakceptuj systemową zgodę USB.
 4. Naciśnij „Pobierz i nagraj Fedorę”. Potwierdź wymazanie wskazanego nośnika.
@@ -19,14 +19,14 @@ To osobna implementacja Androida, a nie kompilacja desktopowego Qt ani oficjalny
 - Aktualny katalog z `https://fedoraproject.org/releases.json`; wyłącznie stabilne wydania ISO. Selektor pokazuje edycje x86_64 w grupach Oficjalne edycje, Atomic Desktops, Spins i Labs; osobne pole wydania zawiera tylko wersje wybranej edycji, od najnowszej.
 - Pobieranie HTTPS z obsługą przekierowań do luster, przy odrzuceniu przekierowania do HTTP.
 - Sprawdzenie rozmiaru i SHA-256 pobranego pliku względem katalogu, ponowne sprawdzenie pliku przed pierwszym zapisem.
-- Prywatna kopia ISO w pamięci aplikacji; użycie poprawnej kopii przy kolejnym nagraniu. Nowe pobranie usuwa pozostałe zapisane ISO, aby nie kumulować dużych plików. Można je też usunąć w oknie informacji.
+- Pobrane ISO jest automatycznie usuwane z telefonu po pomyślnym zapisie i pełnej weryfikacji USB. Po błędzie lub anulowaniu pozostaje prywatnie w pamięci aplikacji do ponownej próby; można je też usunąć w oknie informacji. Błąd usuwania ISO nie zmienia poprawnego zapisu USB w błąd nagrywania — aplikacja informuje o pozostawionym pliku.
 - USB Host: wykrywanie BOT/SCSI, zgoda systemowa, odczyt pojemności, kontrola rozmiaru przed pobraniem i przed zapisem.
 - Surowy zapis od LBA 0, sektory 512/1024/2048/4096 B, dopełnienie ostatniego sektora zerami, SYNCHRONIZE CACHE(10). Jeśli REQUEST SENSE potwierdzi brak obsługi tego polecenia (bieżący ILLEGAL REQUEST, ASC/ASCQ 20/00 lub 24/00), aplikacja nadal wykonuje pełną weryfikację USB i informuje o braku potwierdzenia opróżnienia bufora. Pozostałe błędy nadal przerywają operację.
 - Pełny odczyt zapisanych bajtów i porównanie SHA-256. Sukces jest zgłaszany dopiero po weryfikacji.
 - Foreground service, powiadomienie z anulowaniem, blokada częściowa CPU, wykrywanie odłączenia USB i błędów transferu.
 - Bez dostępu do całej pamięci telefonu i bez uprawnień administratora.
 
-## Wymagania i ograniczenia wersji 0.2.1
+## Wymagania i ograniczenia wersji 0.2.2
 
 Telefon musi obsługiwać USB Host / OTG i zasilać pendrive. Wspierane są USB Mass Storage, podklasa SCSI transparent (6), transport Bulk-Only (0x50), pojedynczy LUN. UAS, czytniki wielonośnikowe i urządzenia wymagające READ CAPACITY(16) nie są obsługiwane. Nie ma przywracania pendrive’a do FAT/exFAT, importu lokalnego ISO, zapisu skompresowanych RAW ani wznawiania częściowego pobrania. Uproszczony selektor nie oferuje obrazów ARM64.
 

@@ -75,10 +75,15 @@ class WriterService : Service() {
                         update(stage,done,total)
                     }
                 }
+                // Only remove the downloaded image after full readback verification and closing USB.
+                // A cleanup failure must not turn a correctly written USB into a failed write.
+                val cacheRemoved = runCatching { image.delete() || !image.exists() }.getOrDefault(false)
+                val cacheMessage = if(cacheRemoved) " Pobrane ISO usunięto z telefonu."
+                    else " Nie udało się usunąć ISO z telefonu. Możesz usunąć je w oknie informacji."
                 val message = if(syncResult == CacheSyncResult.UNSUPPORTED)
                     "Pendrive jest gotowy! Zapis zweryfikowany. Ten nośnik nie obsługuje potwierdzenia opróżnienia bufora."
                     else "Pendrive jest gotowy! Zapis zweryfikowany."
-                WriterState.operation.value = Operation(stage=message,done=release.size,total=release.size,success=true)
+                WriterState.operation.value = Operation(stage=message+cacheMessage,done=release.size,total=release.size,success=true)
             } catch (e: CancellationException) {
                 WriterState.operation.value = Operation(stage=(e.message ?: "Anulowano.") + if(writeComplete) " Zapis danych zakończony; weryfikacja nie została ukończona."
                     else if(writing) " Zapis mógł zostać przerwany — nagraj pendrive ponownie." else " Możesz spróbować ponownie.",error=true)
