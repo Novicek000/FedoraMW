@@ -1,0 +1,11 @@
+*.iml
+.gradle/
+.idea/
+local.properties
+**/build/
+*.jks
+
+/build-check.log
+
+# Local distribution artifacts are published through GitHub Releases.
+/dist/
