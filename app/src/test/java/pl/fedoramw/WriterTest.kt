@@ -16,9 +16,12 @@ class WriterTest {
         var writes = 0
         var synced = false
         var corrupt = false
+        var syncResult = CacheSyncResult.SYNCED
+        var syncFailure: IOException? = null
+        var reads = 0
         override fun write(lba: Long, data: ByteArray) { assertEquals(0,data.size%blockSize); writes++; data.copyInto(bytes,(lba*blockSize).toInt()) }
-        override fun read(lba: Long, size: Int): ByteArray = bytes.copyOfRange((lba*blockSize).toInt(),(lba*blockSize).toInt()+size).also { if(corrupt) it[0]=(it[0].toInt() xor 1).toByte() }
-        override fun sync() { synced=true }
+        override fun read(lba: Long, size: Int): ByteArray = bytes.copyOfRange((lba*blockSize).toInt(),(lba*blockSize).toInt()+size).also { reads++; if(corrupt) it[0]=(it[0].toInt() xor 1).toByte() }
+        override fun sync(): CacheSyncResult { synced=true; syncFailure?.let { throw it }; return syncResult }
     }
     private fun image(size: Int = 1024*1024+17, body: (File, String) -> Unit) {
         val file = File.createTempFile("fedora-test", ".iso")
@@ -32,7 +35,7 @@ class WriterTest {
         assertEquals(2,disk.writes); assertTrue(disk.synced)
         assertArrayEquals(file.readBytes(),disk.bytes.copyOf(file.length().toInt()))
         assertEquals(0,disk.bytes[file.length().toInt()].toInt())
-        assertEquals(setOf("Sprawdzanie ISO","Zapisywanie USB","Weryfikacja pendrive’a"),stages)
+        assertEquals(setOf("Sprawdzanie ISO","Zapisywanie USB","Finalizowanie zapisu","Weryfikacja pendrive’a"),stages)
     }
     @Test fun invalidHashNeverWrites() = image { file,_ ->
         val disk=MemoryDisk()
@@ -58,6 +61,31 @@ class WriterTest {
         val disk=MemoryDisk(blockSize=4096,blocks=4)
         ImageWriter.flash(file,hash,disk,{}, {_,_,_->})
         assertArrayEquals(file.readBytes(),disk.bytes.copyOf(9001)); assertEquals(1,disk.writes)
+    }
+    @Test fun unsupportedCacheSyncStillRequiresFullReadback() = image { file,hash ->
+        val disk=MemoryDisk().apply { syncResult=CacheSyncResult.UNSUPPORTED }
+        val result=ImageWriter.flash(file,hash,disk,{}, {_,_,_->})
+        assertEquals(CacheSyncResult.UNSUPPORTED,result)
+        assertEquals(2,disk.reads)
+        assertTrue(disk.synced)
+    }
+    @Test fun unsupportedCacheSyncDoesNotHideCorruption() = image { file,hash ->
+        val disk=MemoryDisk().apply { syncResult=CacheSyncResult.UNSUPPORTED; corrupt=true }
+        assertThrows(IOException::class.java) { ImageWriter.flash(file,hash,disk,{}, {_,_,_->}) }
+        assertTrue(disk.reads>0)
+    }
+    @Test fun realCacheSyncErrorNeverReportsSuccess() = image { file,hash ->
+        val failure=IOException("medium error")
+        val disk=MemoryDisk().apply { syncFailure=failure }
+        val thrown=assertThrows(IOException::class.java) { ImageWriter.flash(file,hash,disk,{}, {_,_,_->}) }
+        assertSame(failure,thrown); assertTrue(disk.writes>0); assertEquals(0,disk.reads)
+    }
+    @Test fun cancellationAfterSyncNeverReportsSuccess() = image { file,hash ->
+        val disk=MemoryDisk().apply { syncResult=CacheSyncResult.UNSUPPORTED }
+        assertThrows(CancellationException::class.java) {
+            ImageWriter.flash(file,hash,disk,{if(disk.synced) throw CancellationException()}, {_,_,_->})
+        }
+        assertTrue(disk.writes>0); assertEquals(0,disk.reads)
     }
     private class Transport : BulkTransport {
         val sent=mutableListOf<ByteArray>()

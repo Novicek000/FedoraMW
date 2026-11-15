@@ -21,6 +21,7 @@ class WriterService : Service() {
     private var deviceName: String? = null
     private var wake: PowerManager.WakeLock? = null
     private var writing = false
+    private var writeComplete = false
     private var lastUpdate = 0L
     private var registered = false
     private val detached = object : BroadcastReceiver() {
@@ -47,6 +48,7 @@ class WriterService : Service() {
         }
         deviceName = name
         writing = false
+        writeComplete = false
         WriterState.operation.value = Operation(busy=true,stage="Przygotowanie")
         val notifications = getSystemService(NotificationManager::class.java)
         notifications.createNotificationChannel(NotificationChannel("write","Pobieranie i zapis USB",NotificationManager.IMPORTANCE_LOW))
@@ -66,17 +68,23 @@ class WriterService : Service() {
                 val image = FedoraRepository.download(release,java.io.File(filesDir,"images"),active) { done,total -> update("Pobieranie ISO",done,total) }
                 active()
                 check(manager.deviceList[name] == device && manager.hasPermission(device)) { "Pendrive został odłączony. Wybierz go ponownie." }
-                UsbDisk.open(manager,device).use { disk ->
+                val syncResult = UsbDisk.open(manager,device).use { disk ->
                     ImageWriter.flash(image,release.sha256,disk,active) { stage,done,total ->
                         if (stage == "Zapisywanie USB") writing = true
+                        if (stage == "Finalizowanie zapisu") writeComplete = true
                         update(stage,done,total)
                     }
                 }
-                WriterState.operation.value = Operation(stage="Pendrive jest gotowy!",done=release.size,total=release.size,success=true)
+                val message = if(syncResult == CacheSyncResult.UNSUPPORTED)
+                    "Pendrive jest gotowy! Zapis zweryfikowany. Ten nośnik nie obsługuje potwierdzenia opróżnienia bufora."
+                    else "Pendrive jest gotowy! Zapis zweryfikowany."
+                WriterState.operation.value = Operation(stage=message,done=release.size,total=release.size,success=true)
             } catch (e: CancellationException) {
-                WriterState.operation.value = Operation(stage=(e.message ?: "Anulowano.") + if(writing) " Zapis jest niepełny — nagraj pendrive ponownie." else " Możesz spróbować ponownie.",error=true)
+                WriterState.operation.value = Operation(stage=(e.message ?: "Anulowano.") + if(writeComplete) " Zapis danych zakończony; weryfikacja nie została ukończona."
+                    else if(writing) " Zapis mógł zostać przerwany — nagraj pendrive ponownie." else " Możesz spróbować ponownie.",error=true)
             } catch (e: Exception) {
-                WriterState.operation.value = Operation(stage=(e.message ?: "Nieznany błąd.") + if(writing) " Pendrive wymaga ponownego nagrania." else "",error=true)
+                WriterState.operation.value = Operation(stage=(e.message ?: "Nieznany błąd.") + if(writeComplete) " Zapis danych zakończony; nie potwierdzono poprawności nośnika."
+                    else if(writing) " Zapis mógł zostać przerwany — nagraj pendrive ponownie." else "",error=true)
             } finally {
                 if (wake?.isHeld == true) wake?.release()
                 if (registered) { unregisterReceiver(detached); registered = false }

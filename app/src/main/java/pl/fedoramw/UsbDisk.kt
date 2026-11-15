@@ -35,7 +35,7 @@ class UsbDisk private constructor(
     }
     private fun cdb(op: Int, lba: Long, size: Int) = ByteBuffer.allocate(10).order(ByteOrder.BIG_ENDIAN)
         .put(op.toByte()).put(0).putInt(lba.toInt()).put(0).putShort((size / blockSize).toShort()).put(0).array()
-    override fun sync() { bot.command(byteArrayOf(0x35,0,0,0,0,0,0,0,0,0)) }
+    override fun sync(): CacheSyncResult = synchronizeCache(bot)
     override fun close() { connection.releaseInterface(intf); connection.close() }
     companion object {
         fun open(manager: UsbManager, device: UsbDevice): UsbDisk {
@@ -63,7 +63,8 @@ class UsbDisk private constructor(
                         while (offset < bytes.size) {
                             val length = minOf(16384, bytes.size - offset)
                             val n = connection.bulkTransfer(endpoint, bytes, offset, length, 15000)
-                            if (n <= 0) throw IOException("USB nie odpowiada. Sprawdź przewód OTG i zasilanie pendrive’a.")
+                            if (n < 0 || (n == 0 && writing)) throw IOException("USB nie odpowiada. Sprawdź przewód OTG i zasilanie pendrive’a.")
+                            if (n == 0) break // A zero-length IN packet terminates the data phase.
                             offset += n
                             if (n < length && !writing) break
                         }
@@ -75,7 +76,7 @@ class UsbDisk private constructor(
                 repeat(6) {
                     if (!ready) try { bot.command(byteArrayOf(0,0,0,0,0,0)); ready = true }
                     catch (e: ScsiFailure) {
-                        bot.command(byteArrayOf(3,0,0,0,18,0),18)
+                        bot.command(byteArrayOf(3,0,0,0,18,0),18,allowShortInput=true)
                         Thread.sleep(250)
                     }
                 }

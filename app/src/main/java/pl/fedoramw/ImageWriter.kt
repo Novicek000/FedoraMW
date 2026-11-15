@@ -6,7 +6,7 @@ import java.io.IOException
 import java.security.MessageDigest
 
 object ImageWriter {
-    fun flash(file: File, expectedHash: String, disk: BlockDisk, checkActive: () -> Unit, progress: (String, Long, Long) -> Unit) {
+    fun flash(file: File, expectedHash: String, disk: BlockDisk, checkActive: () -> Unit, progress: (String, Long, Long) -> Unit): CacheSyncResult {
         val size = file.length()
         require(size > 0) { "Obraz jest pusty." }
         val padded = ((size + disk.blockSize - 1) / disk.blockSize) * disk.blockSize
@@ -43,7 +43,11 @@ object ImageWriter {
                 done += n; progress("Zapisywanie USB",done,size)
             }
         }
-        checkActive(); disk.sync()
+        progress("Finalizowanie zapisu",0,0)
+        checkActive()
+        val syncResult = disk.sync()
+        checkActive()
+        progress("Weryfikacja pendrive’a",0,size)
         val after = MessageDigest.getInstance("SHA-256")
         var done = 0L
         while (done < size) {
@@ -55,6 +59,7 @@ object ImageWriter {
             progress("Weryfikacja pendrive’a",done,size)
         }
         if (!after.digest().hex().equals(expectedHash,true)) throw IOException("Weryfikacja USB nie powiodła się. Nagraj pendrive ponownie.")
+        return syncResult
     }
 }
 fun ByteArray.hex() = joinToString("") { "%02x".format(it.toInt() and 255) }
